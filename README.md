@@ -433,6 +433,52 @@ It's a small macOS customization, but if you regularly move between **Finder**, 
 
 ---
 
+## Generated Documentation
+
+The shell API reference is generated from the shdoc-compatible annotations in `open-in-vscode-installer.sh` and written in MoyaForge's ordered `page.mdx` structure:
+
+```text
+docs/
+├── page.mdx
+└── 03-reference/
+    ├── page.mdx
+    └── 01-cli/
+        └── page.mdx
+```
+
+The generator prefers [`shdoc-ng`](https://github.com/jdevera/shdoc-ng) and falls back to [`shdoc`](https://github.com/reconquest/shdoc).
+
+Install `shdoc-ng` on macOS:
+
+```bash
+brew install jdevera/tap/shdoc-ng
+```
+
+Generate the MoyaForge reference page:
+
+```bash
+npm run docs:generate
+```
+
+Validate shell documentation annotations without writing files:
+
+```bash
+npm run docs:check
+```
+
+The same generator is exposed as a local CLI:
+
+```bash
+npm exec open-in-vscode-docs
+npm exec open-in-vscode-docs -- --check
+npm exec open-in-vscode-docs -- --generator shdoc
+```
+
+`docs/03-reference/01-cli/page.mdx` is generated output. Edit the annotations in `open-in-vscode-installer.sh`, then regenerate the page instead of editing the generated API reference directly.
+
+
+---
+
 ## Tests
 
 The installer has Vitest regression tests for its CLI contract, `fzf` behavior, VS Code bundle selection, generated Finder Quick Action configuration, and README consistency.
