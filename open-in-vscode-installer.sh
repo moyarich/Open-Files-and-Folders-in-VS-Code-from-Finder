@@ -20,11 +20,12 @@ set -euo pipefail
 
 NAME="Open in VS Code"
 DEST="$HOME/Library/Services/$NAME.workflow"
-MODE="${1:-}"
-REQUESTED_BUNDLE_ID="${2:-${OPEN_IN_VSCODE_BUNDLE_ID:-}}"
 
 STABLE_BUNDLE_ID="com.microsoft.VSCode"
 INSIDERS_BUNDLE_ID="com.microsoft.VSCodeInsiders"
+
+MODE=""
+REQUESTED_BUNDLE_ID=""
 
 info() { printf "\033[1;34m==>\033[0m %s\n" "$1"; }
 ok()   { printf "\033[1;32m✓\033[0m %s\n" "$1"; }
@@ -44,9 +45,19 @@ is_interactive_terminal() {
     [[ -t 0 ]]
 }
 
+validate_bundle_id() {
+    local bundle_id="$1"
+
+    [[ -n "$bundle_id" ]] || return 1
+    [[ "$bundle_id" =~ '^[A-Za-z0-9][A-Za-z0-9._-]*$' ]]
+}
+
 find_app_by_bundle_id() {
     local bundle_id="$1"
     local result=""
+
+    validate_bundle_id "$bundle_id" ||
+        return 1
 
     case "$bundle_id" in
         "$STABLE_BUNDLE_ID")
@@ -64,7 +75,11 @@ find_app_by_bundle_id() {
     esac
 
     if command -v mdfind >/dev/null 2>&1; then
-        result="$(mdfind "kMDItemCFBundleIdentifier == '${bundle_id}'" | head -n 1 || true)"
+        result="$(
+            mdfind "kMDItemCFBundleIdentifier == '${bundle_id}'" |
+                head -n 1 ||
+                true
+        )"
 
         if [[ -n "$result" && -d "$result" ]]; then
             print -r -- "$result"
@@ -92,8 +107,17 @@ select_mode() {
 
     if is_interactive_terminal && has_fzf; then
         selection="$(
-            printf '%s\n'                 $'install\tInstall or replace the Finder Quick Action'                 $'status\tShow installer and VS Code status'                 $'uninstall\tRemove the Finder Quick Action' |
-                fzf                     --height=40%                     --layout=reverse                     --border                     --prompt='Action > '                     --header='Open in VS Code — Finder Quick Action'                     --with-nth=1,2
+            printf '%s\n' \
+                $'install\tInstall or replace the Finder Quick Action' \
+                $'status\tShow installer and VS Code status' \
+                $'uninstall\tRemove the Finder Quick Action' |
+                fzf \
+                    --height=40% \
+                    --layout=reverse \
+                    --border \
+                    --prompt='Action > ' \
+                    --header='Open in VS Code — Finder Quick Action' \
+                    --with-nth=1,2
         )" || exit 130
 
         MODE="${selection%%$'\t'*}"
@@ -102,7 +126,7 @@ select_mode() {
 
     if is_interactive_terminal && ! has_fzf; then
         warn "fzf is not installed; defaulting to install."
-        warn "Install fzf for the interactive action picker, or pass install/status/uninstall explicitly."
+        warn "Install fzf for the interactive picker, or pass install/status/uninstall explicitly."
     fi
 
     MODE="install"
@@ -113,6 +137,9 @@ select_vscode_bundle() {
     local path selection
 
     if [[ -n "$REQUESTED_BUNDLE_ID" ]]; then
+        validate_bundle_id "$REQUESTED_BUNDLE_ID" ||
+            fail "Invalid VS Code bundle identifier: $REQUESTED_BUNDLE_ID"
+
         print -r -- "$REQUESTED_BUNDLE_ID"
         return
     fi
@@ -140,7 +167,13 @@ select_vscode_bundle() {
     if is_interactive_terminal && has_fzf; then
         selection="$(
             printf '%s\n' "${choices[@]}" |
-                fzf                     --height=40%                     --layout=reverse                     --border                     --prompt='VS Code > '                     --header='Choose which VS Code app Finder should open'                     --with-nth=1,3
+                fzf \
+                    --height=40% \
+                    --layout=reverse \
+                    --border \
+                    --prompt='VS Code > ' \
+                    --header='Choose which VS Code app Finder should open' \
+                    --with-nth=1,3
         )" || exit 130
 
         print -r -- "$selection" | cut -f2
@@ -152,9 +185,33 @@ select_vscode_bundle() {
     print -r -- "$STABLE_BUNDLE_ID"
 }
 
+configured_bundle_id() {
+    local workflow="$DEST/Contents/document.wflow"
+    local command_line=""
+
+    [[ -f "$workflow" ]] || return 1
+
+    command_line="$(
+        grep -o '/usr/bin/open -b [A-Za-z0-9._-]* "\$@"' "$workflow" |
+            head -n 1 ||
+            true
+    )"
+
+    [[ -n "$command_line" ]] || return 1
+
+    command_line="${command_line#/usr/bin/open -b }"
+    command_line="${command_line% \"\\\$@\"}"
+
+    validate_bundle_id "$command_line" || return 1
+    print -r -- "$command_line"
+}
+
 refresh_services() {
+    # Flush the Services cache first. Restarting Finder is intentionally kept as
+    # a fallback because Finder can otherwise retain a stale Quick Actions menu.
     [[ -x "/System/Library/CoreServices/pbs" ]] &&
-        /System/Library/CoreServices/pbs -flush >/dev/null 2>&1 || true
+        /System/Library/CoreServices/pbs -flush >/dev/null 2>&1 ||
+        true
 
     killall Finder >/dev/null 2>&1 || true
 }
@@ -163,6 +220,9 @@ install_workflow() {
     local tmp src saved_path automator_was_running bundle_id app_path
 
     bundle_id="$(select_vscode_bundle)"
+    validate_bundle_id "$bundle_id" ||
+        fail "Invalid VS Code bundle identifier: $bundle_id"
+
     app_path="$(find_app_by_bundle_id "$bundle_id" 2>/dev/null || true)"
 
     if [[ -n "$app_path" ]]; then
@@ -273,7 +333,7 @@ APPLESCRIPT
 }
 
 show_status() {
-    local stable_path insiders_path
+    local stable_path insiders_path configured_bundle=""
 
     stable_path="$(find_app_by_bundle_id "$STABLE_BUNDLE_ID" 2>/dev/null || true)"
     insiders_path="$(find_app_by_bundle_id "$INSIDERS_BUNDLE_ID" 2>/dev/null || true)"
@@ -285,6 +345,14 @@ show_status() {
     if [[ -d "$DEST" ]]; then
         echo "Quick Action: installed"
         echo "Path:         $DEST"
+
+        configured_bundle="$(configured_bundle_id 2>/dev/null || true)"
+        if [[ -n "$configured_bundle" ]]; then
+            echo "Target:       $(bundle_label "$configured_bundle")"
+            echo "Bundle ID:    $configured_bundle"
+        else
+            echo "Target:       unknown"
+        fi
     else
         echo "Quick Action: not installed"
     fi
@@ -343,48 +411,59 @@ Interactive mode:
 
 Optional environment override:
   OPEN_IN_VSCODE_BUNDLE_ID=$STABLE_BUNDLE_ID zsh $0 install
+
+Bundle IDs may contain only letters, numbers, periods, underscores, and hyphens.
 EOF
 }
 
-check_macos
-select_mode
+main() {
+    MODE="${1:-}"
+    REQUESTED_BUNDLE_ID="${2:-${OPEN_IN_VSCODE_BUNDLE_ID:-}}"
 
-case "$MODE" in
-    install)
-        echo
-        echo "Open in VS Code — Finder Quick Action installer"
-        echo "==============================================="
-        echo
-        echo "This installs:"
-        echo "  • Finder -> Right-click -> Quick Actions -> Open in VS Code"
-        echo
+    check_macos
+    select_mode
 
-        install_workflow
+    case "$MODE" in
+        install)
+            echo
+            echo "Open in VS Code — Finder Quick Action installer"
+            echo "==============================================="
+            echo
+            echo "This installs:"
+            echo "  • Finder -> Right-click -> Quick Actions -> Open in VS Code"
+            echo
 
-        echo
-        ok "Installation complete"
-        echo
-        echo "Try:"
-        echo "  Right-click a file or folder"
-        echo "  -> Quick Actions"
-        echo "  -> Open in VS Code"
-        echo
-        ;;
+            install_workflow
 
-    status)
-        show_status
-        ;;
+            echo
+            ok "Installation complete"
+            echo
+            echo "Try:"
+            echo "  Right-click a file or folder"
+            echo "  -> Quick Actions"
+            echo "  -> Open in VS Code"
+            echo
+            ;;
 
-    uninstall)
-        uninstall_workflow
-        ;;
+        status)
+            show_status
+            ;;
 
-    help|-h|--help)
-        usage
-        ;;
+        uninstall)
+            uninstall_workflow
+            ;;
 
-    *)
-        usage
-        exit 2
-        ;;
-esac
+        help|-h|--help)
+            usage
+            ;;
+
+        *)
+            usage
+            exit 2
+            ;;
+    esac
+}
+
+if [[ "${OPEN_IN_VSCODE_SOURCE_ONLY:-0}" != "1" ]]; then
+    main "$@"
+fi
