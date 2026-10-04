@@ -44,7 +44,8 @@ You can still use `code .` whenever you're already working in Terminal and want 
   * [`/usr/bin/open`](#usrbinopen)
   * [`-b com.microsoft.VSCode`](#-b-commicrosoftvscode)
   * [Passing Finder Selections](#passing-finder-selections)
-* [Keep Using ](#keep-using-code--in-terminal)[`code .`](#keep-using-code--in-terminal)[ in Terminal](#keep-using-code--in-terminal)
+* [Keep Using `code .` in Terminal](#keep-using-code--in-terminal)
+* [Tests](#tests)
 
 ---
 
@@ -226,18 +227,7 @@ zsh ./open-in-vscode-installer.sh status
 zsh ./open-in-vscode-installer.sh uninstall
 ```
 
-
-First, make the installer executable:
-
-```bash
-chmod +x ./open-in-vscode-installer.sh
-```
-
-Then run:
-
-```bash
-zsh ./open-in-vscode-installer.sh install
-```
+Because the examples invoke the installer through `zsh`, you do not need to make the file executable first. If you prefer `./open-in-vscode-installer.sh`, run `chmod +x ./open-in-vscode-installer.sh` once.
 
 The script creates the Automator Quick Action, adds the VS Code command, configures it to receive files and folders from Finder, and registers the workflow with macOS.
 
@@ -255,7 +245,7 @@ The installer also includes a status command:
 zsh ./open-in-vscode-installer.sh status
 ```
 
-This checks whether the Automator Quick Action has been created and registered.
+This checks whether the Automator Quick Action exists, reports which VS Code bundle it is configured to open, lists detected stable and Insiders installations, and shows whether optional `fzf` support is available.
 
 ### Uninstall
 
@@ -271,13 +261,15 @@ This removes the Automator workflow from your system.
 
 ## How the Automator Command Works
 
-The entire Automator Quick Action is powered by one command:
+The Automator Quick Action is powered by the macOS `open` command:
 
 ```bash
 /usr/bin/open -b com.microsoft.VSCode "$@"
 ```
 
-When you create the Quick Action manually, you add this command yourself. When you use the installer, the script adds the same command to the Automator workflow automatically.
+That example targets stable Visual Studio Code. The installer can also target VS Code Insiders (`com.microsoft.VSCodeInsiders`) and can accept another validated bundle identifier through the install argument or `OPEN_IN_VSCODE_BUNDLE_ID`.
+
+When you create the Quick Action manually, you add the command yourself. When you use the installer, the script writes the selected bundle identifier into the Automator workflow automatically.
 
 There are three important parts:
 
@@ -451,6 +443,8 @@ Install dependencies and run the suite:
 npm install
 npm test
 ```
+
+CI runs the suite on macOS so the tests exercise the real system Zsh instead of silently skipping shell syntax validation.
 
 Use watch mode while changing the installer:
 
