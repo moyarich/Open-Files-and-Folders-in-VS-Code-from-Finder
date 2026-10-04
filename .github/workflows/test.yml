@@ -21,15 +21,10 @@ jobs:
         uses: actions/setup-node@v5
         with:
           node-version: 22
+          cache: npm
 
       - name: Install dependencies
-        run: npm install
-
-      - name: Print generated lockfile
-        run: |
-          echo "__PACKAGE_LOCK_START__"
-          cat package-lock.json
-          echo "__PACKAGE_LOCK_END__"
+        run: npm ci
 
       - name: Run Vitest
         run: npm test
