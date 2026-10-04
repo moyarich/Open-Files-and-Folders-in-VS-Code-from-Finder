@@ -1,22 +1,402 @@
 {/* This page is generated. Edit shell annotations, then run npm run docs:generate. */}
 
-<!-- Generated from open-in-vscode-installer.sh. -->
+<!-- Generated from open-in-vscode-installer.sh with shdoc-ng. -->
 
 # Open in VS Code Installer
 
 Installs, inspects, and removes the Finder "Open in VS Code" Quick Action.
 
-> Regenerate this page with `npm run docs:generate`. The generator prefers `shdoc-ng` and falls back to `shdoc`.
+## Overview
 
-## CLI
+Supports explicit CLI commands and an optional fzf-driven interactive mode.
+The script is sourceable for tests when OPEN_IN_VSCODE_SOURCE_ONLY=1.
 
-```sh
-zsh ./open-in-vscode-installer.sh
-zsh ./open-in-vscode-installer.sh install
-zsh ./open-in-vscode-installer.sh status
-zsh ./open-in-vscode-installer.sh uninstall
-```
+## Index
 
-## Shell API
+* [info](#info)
+* [ok](#ok)
+* [warn](#warn)
+* [fail](#fail)
+* [check_macos](#check_macos)
+* [has_fzf](#has_fzf)
+* [is_interactive_terminal](#is_interactive_terminal)
+* [validate_bundle_id](#validate_bundle_id)
+* [find_app_by_bundle_id](#find_app_by_bundle_id)
+* [bundle_label](#bundle_label)
+* [select_mode](#select_mode)
+* [select_vscode_bundle](#select_vscode_bundle)
+* [configured_bundle_id](#configured_bundle_id)
+* [refresh_services](#refresh_services)
+* [write_workflow_files](#write_workflow_files)
+* [validate_workflow_files](#validate_workflow_files)
+* [save_workflow_with_automator](#save_workflow_with_automator)
+* [resolve_target_bundle](#resolve_target_bundle)
+* [show_target_editor](#show_target_editor)
+* [install_workflow](#install_workflow)
+* [show_status](#show_status)
+* [uninstall_workflow](#uninstall_workflow)
+* [run_install](#run_install)
+* [run_status](#run_status)
+* [run_uninstall](#run_uninstall)
+* [usage](#usage)
+* [main](#main)
 
-The detailed function reference is generated from the shdoc-compatible annotations in `open-in-vscode-installer.sh`.
+### info
+
+Prints an informational message to stdout.
+
+#### Arguments
+
+* **$1** (string): Message to display.
+
+#### Output on stdout
+
+* A blue-prefixed informational message.
+
+### ok
+
+Prints a success message to stdout.
+
+#### Arguments
+
+* **$1** (string): Message to display.
+
+#### Output on stdout
+
+* A green-prefixed success message.
+
+### warn
+
+Prints a warning message to stderr.
+
+#### Arguments
+
+* **$1** (string): Message to display.
+
+#### Output on stderr
+
+* A yellow-prefixed warning message.
+
+### fail
+
+Prints an error message and terminates the script.
+
+#### Arguments
+
+* **$1** (string): Error message to display.
+
+#### Exit codes
+
+* **1**: Always exits with failure.
+
+#### Output on stderr
+
+* A red-prefixed error message.
+
+### check_macos
+
+Verifies that the installer is running on macOS.
+
+_Function has no arguments._
+
+#### Exit codes
+
+* **0**: When the host operating system is Darwin.
+* **1**: When the host operating system is not macOS.
+
+### has_fzf
+
+Checks whether fzf is available on PATH.
+
+_Function has no arguments._
+
+#### Exit codes
+
+* **0**: When fzf is installed and discoverable.
+* **1**: When fzf is unavailable.
+
+### is_interactive_terminal
+
+Checks whether stdin is attached to an interactive terminal.
+
+_Function has no arguments._
+
+#### Exit codes
+
+* **0**: When stdin is a TTY.
+* **1**: Otherwise.
+
+### validate_bundle_id
+
+Validates a macOS application bundle identifier before interpolation.
+
+#### Arguments
+
+* **$1** (string): Bundle identifier to validate.
+
+#### Exit codes
+
+* **0**: When the identifier contains only allowed characters.
+* **1**: When the identifier is empty or unsafe.
+
+### find_app_by_bundle_id
+
+Finds an installed application path for a validated bundle identifier.
+
+#### Arguments
+
+* **$1** (string): macOS application bundle identifier.
+
+#### Exit codes
+
+* **0**: When a matching application is found.
+* **1**: When the identifier is invalid or no application is found.
+
+#### Output on stdout
+
+* The discovered application path when found.
+
+### bundle_label
+
+Converts a known VS Code bundle identifier to a display label.
+
+#### Arguments
+
+* **$1** (string): Bundle identifier.
+
+#### Output on stdout
+
+* A human-readable label, or the original identifier when unknown.
+
+### select_mode
+
+Resolves the requested installer action.
+
+_Function has no arguments._
+
+#### Variables set
+
+* **MODE** (string): Selected action: install, status, or uninstall.
+
+#### Exit codes
+
+* **130**: When the user cancels the fzf picker.
+
+#### Output on stderr
+
+* Warns when fzf is unavailable in an interactive terminal.
+
+### select_vscode_bundle
+
+Selects the VS Code bundle identifier to store in the Quick Action.
+
+_Function has no arguments._
+
+#### Exit codes
+
+* **130**: When the user cancels the fzf picker.
+
+#### Output on stdout
+
+* The validated bundle identifier selected for installation.
+
+#### Output on stderr
+
+* Warnings for missing editors or fallback behavior.
+
+### configured_bundle_id
+
+Reads the configured VS Code bundle identifier from the installed workflow.
+
+_Function has no arguments._
+
+#### Exit codes
+
+* **0**: When a valid bundle identifier is found.
+* **1**: When the workflow is missing or cannot be parsed safely.
+
+#### Output on stdout
+
+* The configured bundle identifier when it can be parsed safely.
+
+### refresh_services
+
+Refreshes the macOS Services cache and restarts Finder as a fallback.
+
+_Function has no arguments._
+
+#### Exit codes
+
+* **0**: Always; refresh failures are intentionally non-fatal.
+
+### write_workflow_files
+
+Writes the temporary Automator workflow and service metadata files.
+
+#### Arguments
+
+* **$1** (string): Temporary .workflow directory path.
+* **$2** (string): Validated target application bundle identifier.
+
+#### Exit codes
+
+* **0**: When both workflow files are written successfully.
+
+### validate_workflow_files
+
+Validates the generated Automator plist files with plutil.
+
+#### Arguments
+
+* **$1** (string): Temporary .workflow directory path.
+
+#### Exit codes
+
+* **0**: When both plist files are valid.
+* **>0**: When plutil rejects either generated file.
+
+### save_workflow_with_automator
+
+Opens and saves the generated workflow through Automator.
+
+#### Arguments
+
+* **$1** (string): Temporary .workflow directory path.
+
+#### Exit codes
+
+* **0**: When Automator saves the workflow successfully.
+
+#### Output on stdout
+
+* The saved workflow path returned by AppleScript.
+
+### resolve_target_bundle
+
+Resolves and validates the final target bundle identifier.
+
+_Function has no arguments._
+
+#### Exit codes
+
+* **1**: When the selected identifier is invalid.
+
+#### Output on stdout
+
+* The validated bundle identifier.
+
+### show_target_editor
+
+Reports the selected editor and whether it is currently installed.
+
+#### Arguments
+
+* **$1** (string): Validated application bundle identifier.
+
+#### Output on stdout
+
+* Installed editor label and path when present.
+
+#### Output on stderr
+
+* A warning when the selected editor is not currently installed.
+
+### install_workflow
+
+Creates and installs the Finder Quick Action.
+
+_Function has no arguments._
+
+#### Exit codes
+
+* **0**: When the Quick Action is installed successfully.
+
+#### Output on stdout
+
+* Installation progress and the saved workflow path.
+
+#### Output on stderr
+
+* Warnings when the selected editor is not currently installed.
+
+### show_status
+
+Prints Quick Action, configured target, editor, and fzf status.
+
+_Function has no arguments._
+
+#### Output on stdout
+
+* Human-readable installer status information.
+
+### uninstall_workflow
+
+Removes the installed Finder Quick Action.
+
+_Function has no arguments._
+
+#### Exit codes
+
+* **0**: When removed or already absent.
+
+#### Output on stdout
+
+* Removal status.
+
+### run_install
+
+Handles user-facing output for the install command.
+
+_Function has no arguments._
+
+#### Output on stdout
+
+* Installation header, progress, and usage guidance.
+
+### run_status
+
+Handles the status command.
+
+_Function has no arguments._
+
+#### Output on stdout
+
+* Current Quick Action and editor status.
+
+### run_uninstall
+
+Handles the uninstall command.
+
+_Function has no arguments._
+
+#### Output on stdout
+
+* Uninstall progress and result.
+
+### usage
+
+Prints command-line usage and bundle-id rules.
+
+_Function has no arguments._
+
+#### Output on stdout
+
+* Installer usage help.
+
+### main
+
+Parses command arguments and dispatches the requested installer action.
+
+#### Arguments
+
+* **$1** (string): Optional action: install, status, uninstall, or help.
+* **$2** (string): Optional application bundle identifier for install.
+
+#### Environment variables
+
+* **OPEN_IN_VSCODE_BUNDLE_ID** (string): Optional default bundle identifier override.
+
+#### Exit codes
+
+* **0**: When the requested action completes successfully.
+* **2**: When an unknown action is provided.
