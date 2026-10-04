@@ -9,7 +9,7 @@ const rootDirectory = path.resolve(testDirectory, "..");
 
 const installerPath = path.join(
   rootDirectory,
-  "install-open-in-vscode-workflow.sh",
+  "open-in-vscode-installer.sh",
 );
 const readmePath = path.join(rootDirectory, "README.md");
 
@@ -97,11 +97,11 @@ describe("Finder Quick Action installer", () => {
   });
 
   it("documents the actual installer filename and fzf workflow", () => {
-    expect(readme).toContain("install-open-in-vscode-workflow.sh");
+    expect(readme).toContain("open-in-vscode-installer.sh");
     expect(readme).not.toContain("install-open-in-vscode-plugin.sh");
     expect(readme).toContain("brew install fzf");
     expect(readme).toContain(
-      "zsh ./install-open-in-vscode-workflow.sh",
+      "zsh ./open-in-vscode-installer.sh",
     );
   });
 
