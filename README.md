@@ -44,7 +44,8 @@ You can still use `code .` whenever you're already working in Terminal and want 
   * [`/usr/bin/open`](#usrbinopen)
   * [`-b com.microsoft.VSCode`](#-b-commicrosoftvscode)
   * [Passing Finder Selections](#passing-finder-selections)
-* [Keep Using ](#keep-using-code--in-terminal)[`code .`](#keep-using-code--in-terminal)[ in Terminal](#keep-using-code--in-terminal)
+* [Keep Using `code .` in Terminal](#keep-using-code--in-terminal)
+* [Tests](#tests)
 
 ---
 
@@ -183,7 +184,7 @@ The installer is available in my GitHub repository:
 The installer file is:
 
 ```text
-install-open-in-vscode-plugin.sh
+open-in-vscode-installer.sh
 ```
 
 ### Download the Installer
@@ -200,21 +201,33 @@ Then enter the project directory:
 cd Open-Files-and-Folders-in-VS-Code-from-Finder
 ```
 
-You can also download the `install-open-in-vscode-plugin.sh` file directly from the repository if you don't want to clone the entire project.
+You can also download the `open-in-vscode-installer.sh` file directly from the repository if you don't want to clone the entire project.
 
 ### Install
 
-First, make the installer executable:
+Run the installer without arguments to use the interactive picker:
 
 ```bash
-chmod +x ./install-open-in-vscode-plugin.sh
+zsh ./open-in-vscode-installer.sh
 ```
 
-Then run:
+If [`fzf`](https://github.com/junegunn/fzf) is installed, the script presents an action picker for **install**, **status**, and **uninstall**. When both Visual Studio Code and Visual Studio Code - Insiders are detected, installation also provides an `fzf` picker for the target editor.
+
+On Homebrew-based systems, you can install `fzf` with:
 
 ```bash
-zsh ./install-open-in-vscode-plugin.sh install
+brew install fzf
 ```
+
+`fzf` is optional. Explicit commands remain non-interactive and continue to work without it:
+
+```bash
+zsh ./open-in-vscode-installer.sh install
+zsh ./open-in-vscode-installer.sh status
+zsh ./open-in-vscode-installer.sh uninstall
+```
+
+Because the examples invoke the installer through `zsh`, you do not need to make the file executable first. If you prefer `./open-in-vscode-installer.sh`, run `chmod +x ./open-in-vscode-installer.sh` once.
 
 The script creates the Automator Quick Action, adds the VS Code command, configures it to receive files and folders from Finder, and registers the workflow with macOS.
 
@@ -229,17 +242,17 @@ You should see:
 The installer also includes a status command:
 
 ```bash
-zsh ./install-open-in-vscode-plugin.sh status
+zsh ./open-in-vscode-installer.sh status
 ```
 
-This checks whether the Automator Quick Action has been created and registered.
+This checks whether the Automator Quick Action exists, reports which VS Code bundle it is configured to open, lists detected stable and Insiders installations, and shows whether optional `fzf` support is available.
 
 ### Uninstall
 
 To remove the automatically installed Quick Action:
 
 ```bash
-zsh ./install-open-in-vscode-plugin.sh uninstall
+zsh ./open-in-vscode-installer.sh uninstall
 ```
 
 This removes the Automator workflow from your system.
@@ -248,13 +261,15 @@ This removes the Automator workflow from your system.
 
 ## How the Automator Command Works
 
-The entire Automator Quick Action is powered by one command:
+The Automator Quick Action is powered by the macOS `open` command:
 
 ```bash
 /usr/bin/open -b com.microsoft.VSCode "$@"
 ```
 
-When you create the Quick Action manually, you add this command yourself. When you use the installer, the script adds the same command to the Automator workflow automatically.
+That example targets stable Visual Studio Code. The installer can also target VS Code Insiders (`com.microsoft.VSCodeInsiders`) and can accept another validated bundle identifier through the install argument or `OPEN_IN_VSCODE_BUNDLE_ID`.
+
+When you create the Quick Action manually, you add the command yourself. When you use the installer, the script writes the selected bundle identifier into the Automator workflow automatically.
 
 There are three important parts:
 
@@ -414,3 +429,73 @@ is usually the fastest option.
 If you're already browsing files in Finder, the Quick Action saves you from opening Terminal, navigating back to the same directory, and running another command.
 
 It's a small macOS customization, but if you regularly move between **Finder**, **Terminal**, and **Visual Studio Code**, it removes a repetitive step from your development workflow.
+
+
+---
+
+## Generated Documentation
+
+The shell API reference is generated from the shdoc-compatible annotations in `open-in-vscode-installer.sh` and written in MoyaForge's ordered `page.mdx` structure:
+
+```text
+docs/
+├── page.mdx
+└── 03-reference/
+    ├── page.mdx
+    └── 01-cli/
+        └── page.mdx
+```
+
+The generator prefers [`shdoc-ng`](https://github.com/jdevera/shdoc-ng) and falls back to [`shdoc`](https://github.com/reconquest/shdoc).
+
+Install `shdoc-ng` on macOS:
+
+```bash
+brew install jdevera/tap/shdoc-ng
+```
+
+Generate the MoyaForge reference page:
+
+```bash
+npm run docs:generate
+```
+
+Validate shell documentation annotations without writing files:
+
+```bash
+npm run docs:check
+```
+
+The same generator is exposed as a local CLI:
+
+```bash
+npm exec open-in-vscode-docs
+npm exec open-in-vscode-docs -- --check
+npm exec open-in-vscode-docs -- --generator shdoc
+```
+
+`docs/03-reference/01-cli/page.mdx` is generated output. Edit the annotations in `open-in-vscode-installer.sh`, then regenerate the page instead of editing the generated API reference directly.
+
+
+---
+
+## Tests
+
+The installer has Vitest regression tests for its CLI contract, `fzf` behavior, VS Code bundle selection, generated Finder Quick Action configuration, and README consistency.
+
+Install dependencies and run the suite:
+
+```bash
+npm install
+npm test
+```
+
+CI runs the suite on macOS so the tests exercise the real system Zsh instead of silently skipping shell syntax validation.
+
+Use watch mode while changing the installer:
+
+```bash
+npm run test:watch
+```
+
+When Zsh is available, the suite also runs `zsh -n` against the installer.

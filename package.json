@@ -1,0 +1,17 @@
+{
+  "name": "open-files-and-folders-in-vs-code-from-finder",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "docs:generate": "node ./scripts/generate-docs.mjs",
+    "docs:check": "node ./scripts/generate-docs.mjs --check"
+  },
+  "devDependencies": {
+    "vitest": "^5.0.3"
+  },
+  "bin": {
+    "open-in-vscode-docs": "./scripts/generate-docs.mjs"
+  }
+}
