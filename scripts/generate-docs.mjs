@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { parseArgs } from "node:util";
@@ -35,10 +35,11 @@ Options:
 }
 
 function commandExists(command) {
-  const result = spawnSync("command", ["-v", command], {
-    shell: true,
-    stdio: "ignore",
-  });
+  const result = spawnSync(
+    "/bin/sh",
+    ["-c", 'command -v "$1" >/dev/null 2>&1', "sh", command],
+    { stdio: "ignore" },
+  );
 
   return result.status === 0;
 }
