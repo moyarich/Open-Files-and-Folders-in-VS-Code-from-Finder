@@ -183,7 +183,7 @@ The installer is available in my GitHub repository:
 The installer file is:
 
 ```text
-install-open-in-vscode-workflow.sh
+open-in-vscode-installer.sh
 ```
 
 ### Download the Installer
@@ -200,14 +200,14 @@ Then enter the project directory:
 cd Open-Files-and-Folders-in-VS-Code-from-Finder
 ```
 
-You can also download the `install-open-in-vscode-workflow.sh` file directly from the repository if you don't want to clone the entire project.
+You can also download the `open-in-vscode-installer.sh` file directly from the repository if you don't want to clone the entire project.
 
 ### Install
 
 Run the installer without arguments to use the interactive picker:
 
 ```bash
-zsh ./install-open-in-vscode-workflow.sh
+zsh ./open-in-vscode-installer.sh
 ```
 
 If [`fzf`](https://github.com/junegunn/fzf) is installed, the script presents an action picker for **install**, **status**, and **uninstall**. When both Visual Studio Code and Visual Studio Code - Insiders are detected, installation also provides an `fzf` picker for the target editor.
@@ -221,22 +221,22 @@ brew install fzf
 `fzf` is optional. Explicit commands remain non-interactive and continue to work without it:
 
 ```bash
-zsh ./install-open-in-vscode-workflow.sh install
-zsh ./install-open-in-vscode-workflow.sh status
-zsh ./install-open-in-vscode-workflow.sh uninstall
+zsh ./open-in-vscode-installer.sh install
+zsh ./open-in-vscode-installer.sh status
+zsh ./open-in-vscode-installer.sh uninstall
 ```
 
 
 First, make the installer executable:
 
 ```bash
-chmod +x ./install-open-in-vscode-workflow.sh
+chmod +x ./open-in-vscode-installer.sh
 ```
 
 Then run:
 
 ```bash
-zsh ./install-open-in-vscode-workflow.sh install
+zsh ./open-in-vscode-installer.sh install
 ```
 
 The script creates the Automator Quick Action, adds the VS Code command, configures it to receive files and folders from Finder, and registers the workflow with macOS.
@@ -252,7 +252,7 @@ You should see:
 The installer also includes a status command:
 
 ```bash
-zsh ./install-open-in-vscode-workflow.sh status
+zsh ./open-in-vscode-installer.sh status
 ```
 
 This checks whether the Automator Quick Action has been created and registered.
@@ -262,7 +262,7 @@ This checks whether the Automator Quick Action has been created and registered.
 To remove the automatically installed Quick Action:
 
 ```bash
-zsh ./install-open-in-vscode-workflow.sh uninstall
+zsh ./open-in-vscode-installer.sh uninstall
 ```
 
 This removes the Automator workflow from your system.
