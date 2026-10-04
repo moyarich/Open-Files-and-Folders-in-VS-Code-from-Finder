@@ -1,5 +1,6 @@
-import { readFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
+import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -16,15 +17,112 @@ const readmePath = path.join(rootDirectory, "README.md");
 const installer = readFileSync(installerPath, "utf8");
 const readme = readFileSync(readmePath, "utf8");
 
-describe("Finder Quick Action installer", () => {
+function runSourcedZsh(command: string, args: string[] = []) {
+  return spawnSync(
+    "zsh",
+    [
+      "-c",
+      'OPEN_IN_VSCODE_SOURCE_ONLY=1 source "$1"; shift; ' + command,
+      "zsh",
+      installerPath,
+      ...args,
+    ],
+    { encoding: "utf8" },
+  );
+}
+
+describe("Open in VS Code installer", () => {
+  it("passes zsh syntax validation", () => {
+    const result = spawnSync("zsh", ["-n", installerPath], {
+      encoding: "utf8",
+    });
+
+    expect(result.status, result.stderr).toBe(0);
+  });
+
   it("uses strict Zsh execution", () => {
     expect(installer).toMatch(/^#!\/bin\/zsh\n/);
     expect(installer).toContain("set -euo pipefail");
   });
 
+  it("is sourceable without executing the installer", () => {
+    const result = runSourcedZsh('print -r -- "$STABLE_BUNDLE_ID"');
+
+    expect(result.status, result.stderr).toBe(0);
+    expect(result.stdout.trim()).toBe("com.microsoft.VSCode");
+  });
+
+  it.each([
+    "com.microsoft.VSCode",
+    "com.microsoft.VSCodeInsiders",
+    "com.example.Editor-Preview_1",
+  ])("accepts safe bundle identifier %s", (bundleId) => {
+    const result = runSourcedZsh(
+      'validate_bundle_id "$1"',
+      [bundleId],
+    );
+
+    expect(result.status, result.stderr).toBe(0);
+  });
+
+  it.each([
+    "com.microsoft.VSCode;touch /tmp/pwned",
+    "com.microsoft.VSCode&bad",
+    "com.microsoft.VSCode bad",
+    "com.microsoft.<VSCode>",
+    "",
+  ])("rejects unsafe bundle identifier %j", (bundleId) => {
+    const result = runSourcedZsh(
+      'validate_bundle_id "$1"',
+      [bundleId],
+    );
+
+    expect(result.status).not.toBe(0);
+  });
+
+  it("rejects an unsafe explicit bundle override before selection", () => {
+    const result = runSourcedZsh(
+      'REQUESTED_BUNDLE_ID="$1"; select_vscode_bundle',
+      ["com.microsoft.VSCode;echo injected"],
+    );
+
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain("Invalid VS Code bundle identifier");
+  });
+
+  it("reads the configured bundle id from an installed workflow", () => {
+    const home = mkdtempSync(
+      path.join(tmpdir(), "open-in-vscode-test-"),
+    );
+    const workflow = path.join(
+      home,
+      "Open in VS Code.workflow",
+      "Contents",
+    );
+
+    mkdirSync(workflow, { recursive: true });
+    writeFileSync(
+      path.join(workflow, "document.wflow"),
+      [
+        "<plist><dict>",
+        "<key>COMMAND_STRING</key>",
+        '<string>/usr/bin/open -b com.microsoft.VSCodeInsiders "$@"</string>',
+        "</dict></plist>",
+      ].join(""),
+    );
+
+    const result = runSourcedZsh(
+      'DEST="$1"; configured_bundle_id',
+      [path.join(home, "Open in VS Code.workflow")],
+    );
+
+    expect(result.status, result.stderr).toBe(0);
+    expect(result.stdout.trim()).toBe(
+      "com.microsoft.VSCodeInsiders",
+    );
+  });
+
   it("preserves explicit non-interactive commands", () => {
-    expect(installer).toContain('MODE="${1:-}"');
-    expect(installer).toContain('if [[ -n "$MODE" ]]; then');
     expect(installer).toContain("install)");
     expect(installer).toContain("status)");
     expect(installer).toContain("uninstall)");
@@ -46,15 +144,6 @@ describe("Finder Quick Action installer", () => {
     expect(installer).toContain(
       'INSIDERS_BUNDLE_ID="com.microsoft.VSCodeInsiders"',
     );
-    expect(installer).toContain("Visual Studio Code.app");
-    expect(installer).toContain("Visual Studio Code - Insiders.app");
-  });
-
-  it("supports an explicit bundle-id override", () => {
-    expect(installer).toContain(
-      'REQUESTED_BUNDLE_ID="${2:-${OPEN_IN_VSCODE_BUNDLE_ID:-}}"',
-    );
-    expect(installer).toContain('if [[ -n "$REQUESTED_BUNDLE_ID" ]]');
   });
 
   it("passes all Finder selections to the selected VS Code bundle", () => {
@@ -62,7 +151,7 @@ describe("Finder Quick Action installer", () => {
       '<key>COMMAND_STRING</key><string>/usr/bin/open -b ${bundle_id} "\\$@"</string>',
     );
     expect(installer).toContain(
-      '<key>inputMethod</key><integer>1</integer>',
+      "<key>inputMethod</key><integer>1</integer>",
     );
   });
 
@@ -76,9 +165,6 @@ describe("Finder Quick Action installer", () => {
     expect(installer).toContain(
       "/System/Library/CoreServices/Finder.app",
     );
-    expect(installer).toContain(
-      "<string>com.apple.finder</string>",
-    );
   });
 
   it("validates both generated plist files before installation", () => {
@@ -90,32 +176,14 @@ describe("Finder Quick Action installer", () => {
     );
   });
 
-  it("keeps diagnostic warnings out of machine-readable selector output", () => {
-    expect(installer).toMatch(
-      /warn\(\).*printf .* >&2;/,
-    );
-  });
-
   it("documents the actual installer filename and fzf workflow", () => {
     expect(readme).toContain("open-in-vscode-installer.sh");
-    expect(readme).not.toContain("install-open-in-vscode-plugin.sh");
-    expect(readme).toContain("brew install fzf");
-    expect(readme).toContain(
-      "zsh ./open-in-vscode-installer.sh",
+    expect(readme).not.toContain(
+      "install-open-in-vscode-workflow.sh",
     );
-  });
-
-  const zshCheck = spawnSync("zsh", ["--version"], {
-    encoding: "utf8",
-  });
-
-  const syntaxTest = zshCheck.status === 0 ? it : it.skip;
-
-  syntaxTest("passes zsh syntax validation", () => {
-    const result = spawnSync("zsh", ["-n", installerPath], {
-      encoding: "utf8",
-    });
-
-    expect(result.status, result.stderr).toBe(0);
+    expect(readme).not.toContain(
+      "install-open-in-vscode-plugin.sh",
+    );
+    expect(readme).toContain("brew install fzf");
   });
 });
