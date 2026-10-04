@@ -28,3 +28,15 @@ jobs:
 
       - name: Run Vitest
         run: npm test
+
+      - name: Install shdoc-ng
+        run: brew install jdevera/tap/shdoc-ng
+
+      - name: Check shell documentation
+        run: npm run docs:check
+
+      - name: Generate MoyaForge shell documentation
+        run: npm run docs:generate
+
+      - name: Verify generated documentation is current
+        run: git diff --exit-code -- docs/03-reference/01-cli/page.mdx
