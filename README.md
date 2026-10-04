@@ -183,7 +183,7 @@ The installer is available in my GitHub repository:
 The installer file is:
 
 ```text
-install-open-in-vscode-plugin.sh
+install-open-in-vscode-workflow.sh
 ```
 
 ### Download the Installer
@@ -200,20 +200,20 @@ Then enter the project directory:
 cd Open-Files-and-Folders-in-VS-Code-from-Finder
 ```
 
-You can also download the `install-open-in-vscode-plugin.sh` file directly from the repository if you don't want to clone the entire project.
+You can also download the `install-open-in-vscode-workflow.sh` file directly from the repository if you don't want to clone the entire project.
 
 ### Install
 
 First, make the installer executable:
 
 ```bash
-chmod +x ./install-open-in-vscode-plugin.sh
+chmod +x ./install-open-in-vscode-workflow.sh
 ```
 
 Then run:
 
 ```bash
-zsh ./install-open-in-vscode-plugin.sh install
+zsh ./install-open-in-vscode-workflow.sh install
 ```
 
 The script creates the Automator Quick Action, adds the VS Code command, configures it to receive files and folders from Finder, and registers the workflow with macOS.
@@ -229,7 +229,7 @@ You should see:
 The installer also includes a status command:
 
 ```bash
-zsh ./install-open-in-vscode-plugin.sh status
+zsh ./install-open-in-vscode-workflow.sh status
 ```
 
 This checks whether the Automator Quick Action has been created and registered.
@@ -239,7 +239,7 @@ This checks whether the Automator Quick Action has been created and registered.
 To remove the automatically installed Quick Action:
 
 ```bash
-zsh ./install-open-in-vscode-plugin.sh uninstall
+zsh ./install-open-in-vscode-workflow.sh uninstall
 ```
 
 This removes the Automator workflow from your system.
