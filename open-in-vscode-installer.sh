@@ -187,23 +187,17 @@ select_vscode_bundle() {
 
 configured_bundle_id() {
     local workflow="$DEST/Contents/document.wflow"
-    local command_line=""
+    local bundle_id=""
 
     [[ -f "$workflow" ]] || return 1
 
-    command_line="$(
-        grep -o '/usr/bin/open -b [A-Za-z0-9._-]* "\$@"' "$workflow" |
-            head -n 1 ||
-            true
+    bundle_id="$(
+        sed -n 's#.*<string>/usr/bin/open -b \([A-Za-z0-9._-]*\) "\$@"</string>.*#\1#p' "$workflow" |
+            head -n 1
     )"
 
-    [[ -n "$command_line" ]] || return 1
-
-    command_line="${command_line#/usr/bin/open -b }"
-    command_line="${command_line% \"\\\$@\"}"
-
-    validate_bundle_id "$command_line" || return 1
-    print -r -- "$command_line"
+    validate_bundle_id "$bundle_id" || return 1
+    print -r -- "$bundle_id"
 }
 
 refresh_services() {
