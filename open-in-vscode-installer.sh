@@ -33,19 +33,19 @@ MODE=""
 REQUESTED_BUNDLE_ID=""
 
 # @description Prints an informational message to stdout.
-# @arg info() { string Message to display.
+# @arg $1 string Message to display.
 # @stdout A blue-prefixed informational message.
 info() { printf "\033[1;34m==>\033[0m %s\n" "$1"; }
 # @description Prints a success message to stdout.
-# @arg ok()   { string Message to display.
+# @arg $1 string Message to display.
 # @stdout A green-prefixed success message.
 ok()   { printf "\033[1;32m✓\033[0m %s\n" "$1"; }
 # @description Prints a warning message to stderr.
-# @arg warn() { string Message to display.
+# @arg $1 string Message to display.
 # @stderr A yellow-prefixed warning message.
 warn() { printf "\033[1;33m!\033[0m %s\n" "$1" >&2; }
 # @description Prints an error message and terminates the script.
-# @arg fail() { string Error message to display.
+# @arg $1 string Error message to display.
 # @stderr A red-prefixed error message.
 # @exitcode 1 Always exits with failure.
 fail() { printf "\033[1;31m✗\033[0m %s\n" "$1" >&2; exit 1; }
@@ -76,7 +76,7 @@ is_interactive_terminal() {
 }
 
 # @description Validates a macOS application bundle identifier before interpolation.
-# @arg validate_bundle_id() { string Bundle identifier to validate.
+# @arg $1 string Bundle identifier to validate.
 # @exitcode 0 When the identifier contains only allowed characters.
 # @exitcode 1 When the identifier is empty or unsafe.
 validate_bundle_id() {
@@ -87,7 +87,7 @@ validate_bundle_id() {
 }
 
 # @description Finds an installed application path for a validated bundle identifier.
-# @arg find_app_by_bundle_id() { string macOS application bundle identifier.
+# @arg $1 string macOS application bundle identifier.
 # @stdout The discovered application path when found.
 # @exitcode 0 When a matching application is found.
 # @exitcode 1 When the identifier is invalid or no application is found.
@@ -130,7 +130,7 @@ find_app_by_bundle_id() {
 }
 
 # @description Converts a known VS Code bundle identifier to a display label.
-# @arg bundle_label() { string Bundle identifier.
+# @arg $1 string Bundle identifier.
 # @stdout A human-readable label, or the original identifier when unknown.
 bundle_label() {
     case "$1" in
@@ -271,7 +271,7 @@ refresh_services() {
 }
 
 # @description Writes the temporary Automator workflow and service metadata files.
-# @arg write_workflow_files() { string Temporary .workflow directory path.
+# @arg $1 string Temporary .workflow directory path.
 # @arg $2 string Validated target application bundle identifier.
 # @exitcode 0 When both workflow files are written successfully.
 write_workflow_files() {
@@ -320,7 +320,7 @@ EOF
 }
 
 # @description Validates the generated Automator plist files with plutil.
-# @arg validate_workflow_files() { string Temporary .workflow directory path.
+# @arg $1 string Temporary .workflow directory path.
 # @exitcode 0 When both plist files are valid.
 # @exitcode >0 When plutil rejects either generated file.
 validate_workflow_files() {
@@ -331,7 +331,7 @@ validate_workflow_files() {
 }
 
 # @description Opens and saves the generated workflow through Automator.
-# @arg save_workflow_with_automator() { string Temporary .workflow directory path.
+# @arg $1 string Temporary .workflow directory path.
 # @stdout The saved workflow path returned by AppleScript.
 # @exitcode 0 When Automator saves the workflow successfully.
 save_workflow_with_automator() {
@@ -375,7 +375,7 @@ resolve_target_bundle() {
 }
 
 # @description Reports the selected editor and whether it is currently installed.
-# @arg show_target_editor() { string Validated application bundle identifier.
+# @arg $1 string Validated application bundle identifier.
 # @stdout Installed editor label and path when present.
 # @stderr A warning when the selected editor is not currently installed.
 show_target_editor() {
@@ -574,7 +574,7 @@ EOF
 }
 
 # @description Parses command arguments and dispatches the requested installer action.
-# @arg main() { string Optional action: install, status, uninstall, or help.
+# @arg $1 string Optional action: install, status, uninstall, or help.
 # @arg $2 string Optional application bundle identifier for install.
 # @env OPEN_IN_VSCODE_BUNDLE_ID string Optional default bundle identifier override.
 # @exitcode 0 When the requested action completes successfully.
