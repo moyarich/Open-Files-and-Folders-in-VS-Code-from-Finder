@@ -41,7 +41,7 @@ has_fzf() {
 }
 
 is_interactive_terminal() {
-    [[ -t 0 && -t 1 ]]
+    [[ -t 0 ]]
 }
 
 find_app_by_bundle_id() {
