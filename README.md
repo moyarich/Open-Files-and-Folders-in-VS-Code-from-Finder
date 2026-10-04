@@ -437,3 +437,25 @@ is usually the fastest option.
 If you're already browsing files in Finder, the Quick Action saves you from opening Terminal, navigating back to the same directory, and running another command.
 
 It's a small macOS customization, but if you regularly move between **Finder**, **Terminal**, and **Visual Studio Code**, it removes a repetitive step from your development workflow.
+
+
+---
+
+## Tests
+
+The installer has Vitest regression tests for its CLI contract, `fzf` behavior, VS Code bundle selection, generated Finder Quick Action configuration, and README consistency.
+
+Install dependencies and run the suite:
+
+```bash
+npm install
+npm test
+```
+
+Use watch mode while changing the installer:
+
+```bash
+npm run test:watch
+```
+
+When Zsh is available, the suite also runs `zsh -n` against the installer.
