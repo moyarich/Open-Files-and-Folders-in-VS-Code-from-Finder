@@ -38,11 +38,5 @@ jobs:
       - name: Generate MoyaForge shell documentation
         run: npm run docs:generate
 
-      - name: Print generated documentation
-        run: |
-          echo "__GENERATED_DOCS_START__"
-          cat docs/03-reference/01-cli/page.mdx
-          echo "__GENERATED_DOCS_END__"
-
       - name: Verify generated documentation is current
         run: git diff --exit-code -- docs/03-reference/01-cli/page.mdx
