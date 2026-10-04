@@ -5,19 +5,26 @@ set -euo pipefail
 # =============================================================================
 # Open in VS Code — Finder Quick Action installer
 #
-# Installs ONLY:
-#   Finder -> Right-click -> Quick Actions -> Open in VS Code
+# Interactive mode:
+#   zsh ./install-open-in-vscode-workflow.sh
 #
-# Commands:
+# Command mode:
 #   zsh ./install-open-in-vscode-workflow.sh install
 #   zsh ./install-open-in-vscode-workflow.sh status
 #   zsh ./install-open-in-vscode-workflow.sh uninstall
+#
+# If fzf is available, interactive mode uses it to choose an action and, when
+# multiple VS Code variants are installed, which one the Quick Action opens.
+# Explicit commands remain non-interactive and automation-friendly.
 # =============================================================================
-
 
 NAME="Open in VS Code"
 DEST="$HOME/Library/Services/$NAME.workflow"
-MODE="${1:-install}"
+MODE="${1:-}"
+REQUESTED_BUNDLE_ID="${2:-${OPEN_IN_VSCODE_BUNDLE_ID:-}}"
+
+STABLE_BUNDLE_ID="com.microsoft.VSCode"
+INSIDERS_BUNDLE_ID="com.microsoft.VSCodeInsiders"
 
 info() { printf "\033[1;34m==>\033[0m %s\n" "$1"; }
 ok()   { printf "\033[1;32m✓\033[0m %s\n" "$1"; }
@@ -29,13 +36,120 @@ check_macos() {
         fail "This installer only works on macOS."
 }
 
-find_vscode() {
-    [[ -d "/Applications/Visual Studio Code.app" ]] && return 0
-    [[ -d "$HOME/Applications/Visual Studio Code.app" ]] && return 0
+has_fzf() {
+    command -v fzf >/dev/null 2>&1
+}
 
-    command -v mdfind >/dev/null 2>&1 &&
-        mdfind 'kMDItemCFBundleIdentifier == "com.microsoft.VSCode"' |
-        grep -q .
+is_interactive_terminal() {
+    [[ -t 0 && -t 1 ]]
+}
+
+find_app_by_bundle_id() {
+    local bundle_id="$1"
+    local result=""
+
+    case "$bundle_id" in
+        "$STABLE_BUNDLE_ID")
+            [[ -d "/Applications/Visual Studio Code.app" ]] &&
+                { print -r -- "/Applications/Visual Studio Code.app"; return 0; }
+            [[ -d "$HOME/Applications/Visual Studio Code.app" ]] &&
+                { print -r -- "$HOME/Applications/Visual Studio Code.app"; return 0; }
+            ;;
+        "$INSIDERS_BUNDLE_ID")
+            [[ -d "/Applications/Visual Studio Code - Insiders.app" ]] &&
+                { print -r -- "/Applications/Visual Studio Code - Insiders.app"; return 0; }
+            [[ -d "$HOME/Applications/Visual Studio Code - Insiders.app" ]] &&
+                { print -r -- "$HOME/Applications/Visual Studio Code - Insiders.app"; return 0; }
+            ;;
+    esac
+
+    if command -v mdfind >/dev/null 2>&1; then
+        result="$(mdfind "kMDItemCFBundleIdentifier == '${bundle_id}'" | head -n 1 || true)"
+
+        if [[ -n "$result" && -d "$result" ]]; then
+            print -r -- "$result"
+            return 0
+        fi
+    fi
+
+    return 1
+}
+
+bundle_label() {
+    case "$1" in
+        "$STABLE_BUNDLE_ID") print -r -- "Visual Studio Code" ;;
+        "$INSIDERS_BUNDLE_ID") print -r -- "Visual Studio Code - Insiders" ;;
+        *) print -r -- "$1" ;;
+    esac
+}
+
+select_mode() {
+    local selection
+
+    if [[ -n "$MODE" ]]; then
+        return
+    fi
+
+    if is_interactive_terminal && has_fzf; then
+        selection="$(
+            printf '%s\n'                 $'install\tInstall or replace the Finder Quick Action'                 $'status\tShow installer and VS Code status'                 $'uninstall\tRemove the Finder Quick Action' |
+                fzf                     --height=40%                     --layout=reverse                     --border                     --prompt='Action > '                     --header='Open in VS Code — Finder Quick Action'                     --with-nth=1,2
+        )" || exit 130
+
+        MODE="${selection%%$'\t'*}"
+        return
+    fi
+
+    if is_interactive_terminal && ! has_fzf; then
+        warn "fzf is not installed; defaulting to install."
+        warn "Install fzf for the interactive action picker, or pass install/status/uninstall explicitly."
+    fi
+
+    MODE="install"
+}
+
+select_vscode_bundle() {
+    local -a choices
+    local path selection
+
+    if [[ -n "$REQUESTED_BUNDLE_ID" ]]; then
+        print -r -- "$REQUESTED_BUNDLE_ID"
+        return
+    fi
+
+    if path="$(find_app_by_bundle_id "$STABLE_BUNDLE_ID" 2>/dev/null)"; then
+        choices+=("Visual Studio Code"$'\t'"$STABLE_BUNDLE_ID"$'\t'"$path")
+    fi
+
+    if path="$(find_app_by_bundle_id "$INSIDERS_BUNDLE_ID" 2>/dev/null)"; then
+        choices+=("Visual Studio Code - Insiders"$'\t'"$INSIDERS_BUNDLE_ID"$'\t'"$path")
+    fi
+
+    if (( ${#choices[@]} == 0 )); then
+        warn "No supported VS Code installation was found."
+        warn "The Quick Action will target Visual Studio Code stable."
+        print -r -- "$STABLE_BUNDLE_ID"
+        return
+    fi
+
+    if (( ${#choices[@]} == 1 )); then
+        print -r -- "${${(s:$'\t':)choices[1]}[2]}"
+        return
+    fi
+
+    if is_interactive_terminal && has_fzf; then
+        selection="$(
+            printf '%s\n' "${choices[@]}" |
+                fzf                     --height=40%                     --layout=reverse                     --border                     --prompt='VS Code > '                     --header='Choose which VS Code app Finder should open'                     --with-nth=1,3
+        )" || exit 130
+
+        print -r -- "${${(s:$'\t':)selection}[2]}"
+        return
+    fi
+
+    warn "Multiple VS Code variants are installed; using stable VS Code."
+    warn "Run without arguments in a terminal with fzf to choose interactively."
+    print -r -- "$STABLE_BUNDLE_ID"
 }
 
 refresh_services() {
@@ -46,30 +160,35 @@ refresh_services() {
 }
 
 install_workflow() {
-    local tmp src saved_path automator_was_running
+    local tmp src saved_path automator_was_running bundle_id app_path
+
+    bundle_id="$(select_vscode_bundle)"
+    app_path="$(find_app_by_bundle_id "$bundle_id" 2>/dev/null || true)"
+
+    if [[ -n "$app_path" ]]; then
+        ok "Target: $(bundle_label "$bundle_id")"
+        echo "  $app_path"
+    else
+        warn "$(bundle_label "$bundle_id") is not currently installed."
+        warn "The Quick Action will still be installed and will work after the app is installed."
+    fi
 
     tmp="$(mktemp -d "${TMPDIR:-/tmp}/open-in-vscode.XXXXXX")"
     src="$tmp/$NAME.workflow"
 
-    trap "rm -rf -- ${(q)tmp}" EXIT
+    trap 'rm -rf -- "$tmp"' EXIT
 
     if pgrep -x Automator >/dev/null 2>&1; then
         automator_was_running=1
     else
         automator_was_running=0
-        open -gj -a Automator
     fi
 
-    if ! find_vscode; then
-        warn "Visual Studio Code was not found."
-        warn "The Quick Action will still be installed."
-    fi
-
-    info "Creating Quick Action"
+    info "Creating Finder Quick Action"
 
     mkdir -p "$src/Contents" "$HOME/Library/Services"
 
-    cat >"$src/Contents/document.wflow" <<'EOF'
+    cat >"$src/Contents/document.wflow" <<EOF
 <?xml version="1.0"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
@@ -78,7 +197,7 @@ install_workflow() {
 <key>ActionBundlePath</key><string>/System/Library/Automator/Run Shell Script.action</string>
 <key>BundleIdentifier</key><string>com.apple.RunShellScript</string>
 <key>ActionParameters</key><dict>
-<key>COMMAND_STRING</key><string>/usr/bin/open -b com.microsoft.VSCode "$@"</string>
+<key>COMMAND_STRING</key><string>/usr/bin/open -b ${bundle_id} "\$@"</string>
 <key>inputMethod</key><integer>1</integer>
 <key>shell</key><string>/bin/zsh</string>
 </dict></dict></dict></array>
@@ -106,6 +225,9 @@ EOF
 </dict></array>
 </dict></plist>
 EOF
+
+    plutil -lint "$src/Contents/document.wflow" >/dev/null
+    plutil -lint "$src/Contents/Info.plist" >/dev/null
 
     rm -rf "$DEST"
 
@@ -136,9 +258,8 @@ APPLESCRIPT
     [[ -d "$saved_path" ]] ||
         fail "Automator did not create the Quick Action."
 
-    # Only close Automator if this installer launched it.
     if [[ "$automator_was_running" == "0" ]]; then
-        killall Automator >/dev/null 2>&1 || true
+        osascript -e 'tell application "Automator" to quit' >/dev/null 2>&1 || true
     fi
 
     rm -rf "$tmp"
@@ -148,26 +269,49 @@ APPLESCRIPT
 
     ok "Quick Action installed"
     echo "  $saved_path"
+    echo "  Opens with: $(bundle_label "$bundle_id") ($bundle_id)"
 }
 
 show_status() {
+    local stable_path insiders_path
+
+    stable_path="$(find_app_by_bundle_id "$STABLE_BUNDLE_ID" 2>/dev/null || true)"
+    insiders_path="$(find_app_by_bundle_id "$INSIDERS_BUNDLE_ID" 2>/dev/null || true)"
+
     echo
-    echo "$NAME — Quick Action"
-    echo "------------------------------"
+    echo "$NAME — Finder Quick Action"
+    echo "--------------------------------"
 
     if [[ -d "$DEST" ]]; then
-        echo "Status:  installed"
-        echo "Path:    $DEST"
+        echo "Quick Action: installed"
+        echo "Path:         $DEST"
     else
-        echo "Status:  not installed"
+        echo "Quick Action: not installed"
     fi
 
-    if find_vscode; then
-        echo "VS Code: installed"
+    echo
+    echo "VS Code installations:"
+
+    if [[ -n "$stable_path" ]]; then
+        echo "  ✓ Visual Studio Code"
+        echo "    $stable_path"
     else
-        echo "VS Code: not found"
+        echo "  - Visual Studio Code: not found"
     fi
 
+    if [[ -n "$insiders_path" ]]; then
+        echo "  ✓ Visual Studio Code - Insiders"
+        echo "    $insiders_path"
+    else
+        echo "  - Visual Studio Code - Insiders: not found"
+    fi
+
+    echo
+    if has_fzf; then
+        echo "fzf:          installed ($(command -v fzf))"
+    else
+        echo "fzf:          not installed (optional; explicit commands still work)"
+    fi
     echo
 }
 
@@ -185,18 +329,31 @@ uninstall_workflow() {
     ok "Quick Action removed"
 }
 
+usage() {
+    cat <<EOF
+Usage:
+  zsh $0
+  zsh $0 install [bundle-id]
+  zsh $0 status
+  zsh $0 uninstall
 
-# -----------------------------------------------------------------------------
-# Main
-# -----------------------------------------------------------------------------
+Interactive mode:
+  Run with no arguments. If fzf is installed, choose the action from a picker.
+  During install, fzf also lets you choose between detected VS Code variants.
+
+Optional environment override:
+  OPEN_IN_VSCODE_BUNDLE_ID=$STABLE_BUNDLE_ID zsh $0 install
+EOF
+}
+
 check_macos
+select_mode
 
-
-case "${MODE}" in
+case "$MODE" in
     install)
         echo
-        echo "Open in VS Code — Quick Action installer"
-        echo "========================================"
+        echo "Open in VS Code — Finder Quick Action installer"
+        echo "==============================================="
         echo
         echo "This installs:"
         echo "  • Finder -> Right-click -> Quick Actions -> Open in VS Code"
@@ -222,11 +379,12 @@ case "${MODE}" in
         uninstall_workflow
         ;;
 
+    help|-h|--help)
+        usage
+        ;;
+
     *)
-        echo "Usage:"
-        echo "  zsh $0 install"
-        echo "  zsh $0 status"
-        echo "  zsh $0 uninstall"
+        usage
         exit 2
         ;;
 esac
