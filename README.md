@@ -204,6 +204,29 @@ You can also download the `install-open-in-vscode-workflow.sh` file directly fro
 
 ### Install
 
+Run the installer without arguments to use the interactive picker:
+
+```bash
+zsh ./install-open-in-vscode-workflow.sh
+```
+
+If [`fzf`](https://github.com/junegunn/fzf) is installed, the script presents an action picker for **install**, **status**, and **uninstall**. When both Visual Studio Code and Visual Studio Code - Insiders are detected, installation also provides an `fzf` picker for the target editor.
+
+On Homebrew-based systems, you can install `fzf` with:
+
+```bash
+brew install fzf
+```
+
+`fzf` is optional. Explicit commands remain non-interactive and continue to work without it:
+
+```bash
+zsh ./install-open-in-vscode-workflow.sh install
+zsh ./install-open-in-vscode-workflow.sh status
+zsh ./install-open-in-vscode-workflow.sh uninstall
+```
+
+
 First, make the installer executable:
 
 ```bash
