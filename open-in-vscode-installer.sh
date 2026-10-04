@@ -210,35 +210,9 @@ refresh_services() {
     killall Finder >/dev/null 2>&1 || true
 }
 
-install_workflow() {
-    local tmp src saved_path automator_was_running bundle_id app_path
-
-    bundle_id="$(select_vscode_bundle)"
-    validate_bundle_id "$bundle_id" ||
-        fail "Invalid VS Code bundle identifier: $bundle_id"
-
-    app_path="$(find_app_by_bundle_id "$bundle_id" 2>/dev/null || true)"
-
-    if [[ -n "$app_path" ]]; then
-        ok "Target: $(bundle_label "$bundle_id")"
-        echo "  $app_path"
-    else
-        warn "$(bundle_label "$bundle_id") is not currently installed."
-        warn "The Quick Action will still be installed and will work after the app is installed."
-    fi
-
-    tmp="$(mktemp -d "${TMPDIR:-/tmp}/open-in-vscode.XXXXXX")"
-    src="$tmp/$NAME.workflow"
-
-    trap 'rm -rf -- "$tmp"' EXIT
-
-    if pgrep -x Automator >/dev/null 2>&1; then
-        automator_was_running=1
-    else
-        automator_was_running=0
-    fi
-
-    info "Creating Finder Quick Action"
+write_workflow_files() {
+    local src="$1"
+    local bundle_id="$2"
 
     mkdir -p "$src/Contents" "$HOME/Library/Services"
 
@@ -279,14 +253,19 @@ EOF
 </dict></array>
 </dict></plist>
 EOF
+}
+
+validate_workflow_files() {
+    local src="$1"
 
     plutil -lint "$src/Contents/document.wflow" >/dev/null
     plutil -lint "$src/Contents/Info.plist" >/dev/null
+}
 
-    rm -rf "$DEST"
+save_workflow_with_automator() {
+    local src="$1"
 
-    saved_path="$(
-        osascript - "$src" "$NAME" <<'APPLESCRIPT'
+    osascript - "$src" "$NAME" <<'APPLESCRIPT'
 on run argv
     set src to item 1 of argv
     set workflowName to item 2 of argv
@@ -307,7 +286,58 @@ on run argv
     return savePath
 end run
 APPLESCRIPT
-    )"
+}
+
+resolve_target_bundle() {
+    local bundle_id
+
+    bundle_id="$(select_vscode_bundle)"
+    validate_bundle_id "$bundle_id" ||
+        fail "Invalid VS Code bundle identifier: $bundle_id"
+
+    print -r -- "$bundle_id"
+}
+
+show_target_editor() {
+    local bundle_id="$1"
+    local app_path
+
+    app_path="$(find_app_by_bundle_id "$bundle_id" 2>/dev/null || true)"
+
+    if [[ -n "$app_path" ]]; then
+        ok "Target: $(bundle_label "$bundle_id")"
+        echo "  $app_path"
+    else
+        warn "$(bundle_label "$bundle_id") is not currently installed."
+        warn "The Quick Action will still be installed and will work after the app is installed."
+    fi
+}
+
+install_workflow() {
+    local bundle_id tmp src saved_path automator_was_running
+
+    bundle_id="$(resolve_target_bundle)"
+    show_target_editor "$bundle_id"
+
+    tmp="$(mktemp -d "${TMPDIR:-/tmp}/open-in-vscode.XXXXXX")"
+    src="$tmp/$NAME.workflow"
+
+    trap 'rm -rf -- "$tmp"' EXIT
+
+    if pgrep -x Automator >/dev/null 2>&1; then
+        automator_was_running=1
+    else
+        automator_was_running=0
+    fi
+
+    info "Creating Finder Quick Action"
+
+    write_workflow_files "$src" "$bundle_id"
+    validate_workflow_files "$src"
+
+    rm -rf "$DEST"
+
+    saved_path="$(save_workflow_with_automator "$src")"
 
     [[ -d "$saved_path" ]] ||
         fail "Automator did not create the Quick Action."
@@ -391,6 +421,35 @@ uninstall_workflow() {
     ok "Quick Action removed"
 }
 
+run_install() {
+    echo
+    echo "Open in VS Code — Finder Quick Action installer"
+    echo "==============================================="
+    echo
+    echo "This installs:"
+    echo "  • Finder -> Right-click -> Quick Actions -> Open in VS Code"
+    echo
+
+    install_workflow
+
+    echo
+    ok "Installation complete"
+    echo
+    echo "Try:"
+    echo "  Right-click a file or folder"
+    echo "  -> Quick Actions"
+    echo "  -> Open in VS Code"
+    echo
+}
+
+run_status() {
+    show_status
+}
+
+run_uninstall() {
+    uninstall_workflow
+}
+
 usage() {
     cat <<EOF
 Usage:
@@ -418,39 +477,10 @@ main() {
     select_mode
 
     case "$MODE" in
-        install)
-            echo
-            echo "Open in VS Code — Finder Quick Action installer"
-            echo "==============================================="
-            echo
-            echo "This installs:"
-            echo "  • Finder -> Right-click -> Quick Actions -> Open in VS Code"
-            echo
-
-            install_workflow
-
-            echo
-            ok "Installation complete"
-            echo
-            echo "Try:"
-            echo "  Right-click a file or folder"
-            echo "  -> Quick Actions"
-            echo "  -> Open in VS Code"
-            echo
-            ;;
-
-        status)
-            show_status
-            ;;
-
-        uninstall)
-            uninstall_workflow
-            ;;
-
-        help|-h|--help)
-            usage
-            ;;
-
+        install) run_install ;;
+        status) run_status ;;
+        uninstall) run_uninstall ;;
+        help|-h|--help) usage ;;
         *)
             usage
             exit 2
