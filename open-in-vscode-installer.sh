@@ -1,4 +1,9 @@
 #!/bin/zsh
+# @file Open in VS Code Installer
+# @brief Installs, inspects, and removes the Finder "Open in VS Code" Quick Action.
+# @description
+#   Supports explicit CLI commands and an optional fzf-driven interactive mode.
+#   The script is sourceable for tests when OPEN_IN_VSCODE_SOURCE_ONLY=1.
 
 set -euo pipefail
 
@@ -27,24 +32,53 @@ INSIDERS_BUNDLE_ID="com.microsoft.VSCodeInsiders"
 MODE=""
 REQUESTED_BUNDLE_ID=""
 
+# @description Prints an informational message to stdout.
+# @arg info() { string Message to display.
+# @stdout A blue-prefixed informational message.
 info() { printf "\033[1;34m==>\033[0m %s\n" "$1"; }
+# @description Prints a success message to stdout.
+# @arg ok()   { string Message to display.
+# @stdout A green-prefixed success message.
 ok()   { printf "\033[1;32m✓\033[0m %s\n" "$1"; }
+# @description Prints a warning message to stderr.
+# @arg warn() { string Message to display.
+# @stderr A yellow-prefixed warning message.
 warn() { printf "\033[1;33m!\033[0m %s\n" "$1" >&2; }
+# @description Prints an error message and terminates the script.
+# @arg fail() { string Error message to display.
+# @stderr A red-prefixed error message.
+# @exitcode 1 Always exits with failure.
 fail() { printf "\033[1;31m✗\033[0m %s\n" "$1" >&2; exit 1; }
 
+# @description Verifies that the installer is running on macOS.
+# @noargs
+# @exitcode 0 When the host operating system is Darwin.
+# @exitcode 1 When the host operating system is not macOS.
 check_macos() {
     [[ "$(uname -s)" == "Darwin" ]] ||
         fail "This installer only works on macOS."
 }
 
+# @description Checks whether fzf is available on PATH.
+# @noargs
+# @exitcode 0 When fzf is installed and discoverable.
+# @exitcode 1 When fzf is unavailable.
 has_fzf() {
     command -v fzf >/dev/null 2>&1
 }
 
+# @description Checks whether stdin is attached to an interactive terminal.
+# @noargs
+# @exitcode 0 When stdin is a TTY.
+# @exitcode 1 Otherwise.
 is_interactive_terminal() {
     [[ -t 0 ]]
 }
 
+# @description Validates a macOS application bundle identifier before interpolation.
+# @arg validate_bundle_id() { string Bundle identifier to validate.
+# @exitcode 0 When the identifier contains only allowed characters.
+# @exitcode 1 When the identifier is empty or unsafe.
 validate_bundle_id() {
     local bundle_id="$1"
 
@@ -52,6 +86,11 @@ validate_bundle_id() {
     [[ "$bundle_id" =~ '^[A-Za-z0-9][A-Za-z0-9._-]*$' ]]
 }
 
+# @description Finds an installed application path for a validated bundle identifier.
+# @arg find_app_by_bundle_id() { string macOS application bundle identifier.
+# @stdout The discovered application path when found.
+# @exitcode 0 When a matching application is found.
+# @exitcode 1 When the identifier is invalid or no application is found.
 find_app_by_bundle_id() {
     local bundle_id="$1"
     local result=""
@@ -90,6 +129,9 @@ find_app_by_bundle_id() {
     return 1
 }
 
+# @description Converts a known VS Code bundle identifier to a display label.
+# @arg bundle_label() { string Bundle identifier.
+# @stdout A human-readable label, or the original identifier when unknown.
 bundle_label() {
     case "$1" in
         "$STABLE_BUNDLE_ID") print -r -- "Visual Studio Code" ;;
@@ -98,6 +140,11 @@ bundle_label() {
     esac
 }
 
+# @description Resolves the requested installer action.
+# @noargs
+# @set MODE string Selected action: install, status, or uninstall.
+# @stderr Warns when fzf is unavailable in an interactive terminal.
+# @exitcode 130 When the user cancels the fzf picker.
 select_mode() {
     local selection
 
@@ -132,6 +179,11 @@ select_mode() {
     MODE="install"
 }
 
+# @description Selects the VS Code bundle identifier to store in the Quick Action.
+# @noargs
+# @stdout The validated bundle identifier selected for installation.
+# @stderr Warnings for missing editors or fallback behavior.
+# @exitcode 130 When the user cancels the fzf picker.
 select_vscode_bundle() {
     local -a choices
     local path selection
@@ -185,6 +237,11 @@ select_vscode_bundle() {
     print -r -- "$STABLE_BUNDLE_ID"
 }
 
+# @description Reads the configured VS Code bundle identifier from the installed workflow.
+# @noargs
+# @stdout The configured bundle identifier when it can be parsed safely.
+# @exitcode 0 When a valid bundle identifier is found.
+# @exitcode 1 When the workflow is missing or cannot be parsed safely.
 configured_bundle_id() {
     local workflow="$DEST/Contents/document.wflow"
     local bundle_id=""
@@ -200,6 +257,9 @@ configured_bundle_id() {
     print -r -- "$bundle_id"
 }
 
+# @description Refreshes the macOS Services cache and restarts Finder as a fallback.
+# @noargs
+# @exitcode 0 Always; refresh failures are intentionally non-fatal.
 refresh_services() {
     # Flush the Services cache first. Restarting Finder is intentionally kept as
     # a fallback because Finder can otherwise retain a stale Quick Actions menu.
@@ -210,6 +270,10 @@ refresh_services() {
     killall Finder >/dev/null 2>&1 || true
 }
 
+# @description Writes the temporary Automator workflow and service metadata files.
+# @arg write_workflow_files() { string Temporary .workflow directory path.
+# @arg $2 string Validated target application bundle identifier.
+# @exitcode 0 When both workflow files are written successfully.
 write_workflow_files() {
     local src="$1"
     local bundle_id="$2"
@@ -255,6 +319,10 @@ EOF
 EOF
 }
 
+# @description Validates the generated Automator plist files with plutil.
+# @arg validate_workflow_files() { string Temporary .workflow directory path.
+# @exitcode 0 When both plist files are valid.
+# @exitcode >0 When plutil rejects either generated file.
 validate_workflow_files() {
     local src="$1"
 
@@ -262,6 +330,10 @@ validate_workflow_files() {
     plutil -lint "$src/Contents/Info.plist" >/dev/null
 }
 
+# @description Opens and saves the generated workflow through Automator.
+# @arg save_workflow_with_automator() { string Temporary .workflow directory path.
+# @stdout The saved workflow path returned by AppleScript.
+# @exitcode 0 When Automator saves the workflow successfully.
 save_workflow_with_automator() {
     local src="$1"
 
@@ -288,6 +360,10 @@ end run
 APPLESCRIPT
 }
 
+# @description Resolves and validates the final target bundle identifier.
+# @noargs
+# @stdout The validated bundle identifier.
+# @exitcode 1 When the selected identifier is invalid.
 resolve_target_bundle() {
     local bundle_id
 
@@ -298,6 +374,10 @@ resolve_target_bundle() {
     print -r -- "$bundle_id"
 }
 
+# @description Reports the selected editor and whether it is currently installed.
+# @arg show_target_editor() { string Validated application bundle identifier.
+# @stdout Installed editor label and path when present.
+# @stderr A warning when the selected editor is not currently installed.
 show_target_editor() {
     local bundle_id="$1"
     local app_path
@@ -313,6 +393,11 @@ show_target_editor() {
     fi
 }
 
+# @description Creates and installs the Finder Quick Action.
+# @noargs
+# @stdout Installation progress and the saved workflow path.
+# @stderr Warnings when the selected editor is not currently installed.
+# @exitcode 0 When the Quick Action is installed successfully.
 install_workflow() {
     local bundle_id tmp src saved_path automator_was_running
 
@@ -356,6 +441,9 @@ install_workflow() {
     echo "  Opens with: $(bundle_label "$bundle_id") ($bundle_id)"
 }
 
+# @description Prints Quick Action, configured target, editor, and fzf status.
+# @noargs
+# @stdout Human-readable installer status information.
 show_status() {
     local stable_path insiders_path configured_bundle=""
 
@@ -407,6 +495,10 @@ show_status() {
     echo
 }
 
+# @description Removes the installed Finder Quick Action.
+# @noargs
+# @stdout Removal status.
+# @exitcode 0 When removed or already absent.
 uninstall_workflow() {
     if [[ ! -d "$DEST" ]]; then
         ok "Quick Action is already not installed"
@@ -421,6 +513,9 @@ uninstall_workflow() {
     ok "Quick Action removed"
 }
 
+# @description Handles user-facing output for the install command.
+# @noargs
+# @stdout Installation header, progress, and usage guidance.
 run_install() {
     echo
     echo "Open in VS Code — Finder Quick Action installer"
@@ -442,14 +537,23 @@ run_install() {
     echo
 }
 
+# @description Handles the status command.
+# @noargs
+# @stdout Current Quick Action and editor status.
 run_status() {
     show_status
 }
 
+# @description Handles the uninstall command.
+# @noargs
+# @stdout Uninstall progress and result.
 run_uninstall() {
     uninstall_workflow
 }
 
+# @description Prints command-line usage and bundle-id rules.
+# @noargs
+# @stdout Installer usage help.
 usage() {
     cat <<EOF
 Usage:
@@ -469,6 +573,12 @@ Bundle IDs may contain only letters, numbers, periods, underscores, and hyphens.
 EOF
 }
 
+# @description Parses command arguments and dispatches the requested installer action.
+# @arg main() { string Optional action: install, status, uninstall, or help.
+# @arg $2 string Optional application bundle identifier for install.
+# @env OPEN_IN_VSCODE_BUNDLE_ID string Optional default bundle identifier override.
+# @exitcode 0 When the requested action completes successfully.
+# @exitcode 2 When an unknown action is provided.
 main() {
     MODE="${1:-}"
     REQUESTED_BUNDLE_ID="${2:-${OPEN_IN_VSCODE_BUNDLE_ID:-}}"
