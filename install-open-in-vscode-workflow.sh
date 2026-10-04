@@ -28,7 +28,7 @@ INSIDERS_BUNDLE_ID="com.microsoft.VSCodeInsiders"
 
 info() { printf "\033[1;34m==>\033[0m %s\n" "$1"; }
 ok()   { printf "\033[1;32m✓\033[0m %s\n" "$1"; }
-warn() { printf "\033[1;33m!\033[0m %s\n" "$1"; }
+warn() { printf "\033[1;33m!\033[0m %s\n" "$1" >&2; }
 fail() { printf "\033[1;31m✗\033[0m %s\n" "$1" >&2; exit 1; }
 
 check_macos() {
@@ -133,7 +133,7 @@ select_vscode_bundle() {
     fi
 
     if (( ${#choices[@]} == 1 )); then
-        print -r -- "${${(s:$'\t':)choices[1]}[2]}"
+        print -r -- "${choices[1]}" | cut -f2
         return
     fi
 
@@ -143,7 +143,7 @@ select_vscode_bundle() {
                 fzf                     --height=40%                     --layout=reverse                     --border                     --prompt='VS Code > '                     --header='Choose which VS Code app Finder should open'                     --with-nth=1,3
         )" || exit 130
 
-        print -r -- "${${(s:$'\t':)selection}[2]}"
+        print -r -- "$selection" | cut -f2
         return
     fi
 
